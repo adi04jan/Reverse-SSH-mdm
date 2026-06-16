@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Devices · Reverse SSH Portal{% endblock %}
+{% block content %}
+<div class="row-between">
+  <h1>Devices</h1>
+</div>
+
+<div class="card">
+  <h2>Add a device</h2>
+  <form method="post" action="{{ base }}/devices" class="inline-form">
+    <input type="text" name="name" placeholder="device name (e.g. test-pi)" required>
+    <select name="os">
+      <option value="linux">Linux</option>
+      <option value="windows">Windows</option>
+      <option value="other">Other</option>
+    </select>
+    <input type="text" name="note" placeholder="note (optional)">
+    <button type="submit" class="btn primary">Create</button>
+  </form>
+</div>
+
+{% if rows %}
+<table class="grid">
+  <thead>
+    <tr><th>Status</th><th>Name</th><th>OS</th><th>Tunnels</th><th>Last seen</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr data-device="{{ r.device.id }}">
+      <td><span class="dot {{ 'on' if r.online else 'off' }}" data-role="dot"></span>
+        <span data-role="status">{{ 'online' if r.online else 'offline' }}</span></td>
+      <td><a href="{{ base }}/devices/{{ r.device.id }}">{{ r.device.name }}</a></td>
+      <td>{{ r.device.os }}</td>
+      <td>{{ r.enabled_count }} / {{ r.tunnel_count }} active</td>
+      <td class="muted">{{ r.device.last_seen.strftime('%Y-%m-%d %H:%M UTC') if r.device.last_seen else '—' }}</td>
+      <td><a class="btn small" href="{{ base }}/devices/{{ r.device.id }}">Manage</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No devices yet. Add one above to get started.</p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>window.PORTAL_BASE = "{{ base }}";</script>
+<script src="{{ base }}/static/status.js"></script>
+{% endblock %}

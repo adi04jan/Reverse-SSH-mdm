@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}{{ device.name }} · Reverse SSH Portal{% endblock %}
+{% block content %}
+<p><a href="{{ base }}/">&larr; All devices</a></p>
+<div class="row-between">
+  <h1><span class="dot {{ 'on' if online else 'off' }}"></span> {{ device.name }}</h1>
+  <form method="post" action="{{ base }}/devices/{{ device.id }}/delete"
+        onsubmit="return confirm('Delete device {{ device.name }} and all its tunnels?');">
+    <button type="submit" class="btn danger small">Delete device</button>
+  </form>
+</div>
+<p class="muted">OS: {{ device.os }}
+  · {{ 'Enrolled' if device.enrolled else 'Not enrolled' }}
+  · Last seen: {{ device.last_seen.strftime('%Y-%m-%d %H:%M UTC') if device.last_seen else '—' }}</p>
+
+<div class="card">
+  <h2>Enrollment</h2>
+  {% if new_token %}
+    <p class="ok">One-time enrollment token (shown once — copy it now):</p>
+    <pre class="copyable">{{ new_token }}</pre>
+    <p>Run on the device:</p>
+    <p class="muted">Linux:</p>
+    <pre class="copyable">curl -fsSL {{ portal_url }}/static/install.sh | sudo PORTAL_URL={{ portal_url }} ENROLL_TOKEN={{ new_token }} bash</pre>
+    <p class="muted">Windows (PowerShell as admin):</p>
+    <pre class="copyable">$env:PORTAL_URL='{{ portal_url }}'; $env:ENROLL_TOKEN='{{ new_token }}'; irm "$env:PORTAL_URL/static/install.ps1" | iex</pre>
+  {% else %}
+    {% if device.enrolled %}
+      <p class="ok">This device is enrolled. Issue a new token only to re-provision it.</p>
+    {% else %}
+      <p class="muted">Generate a one-time token, then run the installer on the device.</p>
+    {% endif %}
+    <form method="post" action="{{ base }}/devices/{{ device.id }}/token">
+      <button type="submit" class="btn primary">Generate enrollment token</button>
+    </form>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Tunnels</h2>
+  <form method="post" action="{{ base }}/devices/{{ device.id }}/tunnels" class="inline-form">
+    <input type="number" name="remote_port" placeholder="VPS port (blank = auto)"
+           min="{{ settings.port_range_start }}" max="{{ settings.port_range_end }}">
+    <select name="kind">
+      <option value="ssh">SSH shell (→ device :22)</option>
+      <option value="tcp">Arbitrary TCP</option>
+    </select>
+    <input type="text" name="local_host" value="localhost" title="target host on device">
+    <input type="number" name="local_port" value="22" title="target port on device" required>
+    <input type="text" name="label" placeholder="label (optional)">
+    <button type="submit" class="btn primary">Add tunnel</button>
+  </form>
+
+  {% if tunnels %}
+  <table class="grid">
+    <thead>
+      <tr><th>VPS endpoint</th><th>→ on device</th><th>Kind</th><th>State</th><th>Connect</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for t in tunnels %}
+      <tr>
+        <td><code>{{ settings.vps_host }}:{{ t.remote_port }}</code></td>
+        <td><code>{{ t.local_host }}:{{ t.local_port }}</code>{% if t.label %} <span class="muted">({{ t.label }})</span>{% endif %}</td>
+        <td>{{ t.kind.value }}</td>
+        <td>{{ 'enabled' if t.enabled else 'disabled' }}</td>
+        <td>
+          {% set juser = settings.ssh_jump_user or 'JUMPUSER' %}
+          {% if settings.tunnel_bind == '0.0.0.0' %}
+            {% if t.kind.value == 'ssh' %}
+              <code class="copyable">ssh DEVICEUSER@{{ settings.vps_host }} -p {{ t.remote_port }}</code>
+            {% else %}
+              <code class="copyable">{{ settings.vps_host }}:{{ t.remote_port }}</code>
+            {% endif %}
+          {% else %}
+            {% if t.kind.value == 'ssh' %}
+              <code class="copyable">ssh -J {{ juser }}@{{ settings.vps_host }}:{{ settings.ssh_jump_port }} DEVICEUSER@127.0.0.1 -p {{ t.remote_port }}</code>
+            {% else %}
+              <code class="copyable">ssh -p {{ settings.ssh_jump_port }} -L {{ t.remote_port }}:127.0.0.1:{{ t.remote_port }} {{ juser }}@{{ settings.vps_host }}</code>
+              <span class="muted">then connect to localhost:{{ t.remote_port }}</span>
+            {% endif %}
+          {% endif %}
+        </td>
+        <td class="actions">
+          <form method="post" action="{{ base }}/tunnels/{{ t.id }}/toggle">
+            <button type="submit" class="btn small">{{ 'Disable' if t.enabled else 'Enable' }}</button>
+          </form>
+          <form method="post" action="{{ base }}/tunnels/{{ t.id }}/delete"
+                onsubmit="return confirm('Delete tunnel on port {{ t.remote_port }}?');">
+            <button type="submit" class="btn danger small">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No tunnels assigned. Add one above.</p>
+  {% endif %}
+</div>
+{% endblock %}

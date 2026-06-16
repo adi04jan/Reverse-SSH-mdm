@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Reverse SSH Portal{% endblock %}</title>
+  <link rel="stylesheet" href="{{ base }}/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ base }}/">🔌 Reverse SSH Portal</a>
+    {% if user %}
+    <nav>
+      <span class="muted">{{ user.username }}</span>
+      <a href="{{ base }}/logout">Logout</a>
+    </nav>
+    {% endif %}
+  </header>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
