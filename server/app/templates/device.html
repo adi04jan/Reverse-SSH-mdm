@@ -64,19 +64,33 @@
         <td>{{ 'enabled' if t.enabled else 'disabled' }}</td>
         <td>
           {% set juser = settings.ssh_jump_user or 'JUMPUSER' %}
+          {% set duser = t.connect_user or 'DEVICEUSER' %}
+          {% set opts = (t.ssh_opts or '').strip() %}
           {% if settings.tunnel_bind == '0.0.0.0' %}
             {% if t.kind.value == 'ssh' %}
-              <code class="copyable">ssh DEVICEUSER@{{ settings.vps_host }} -p {{ t.remote_port }}</code>
+              <code class="copyable">ssh{% if opts %} {{ opts }}{% endif %} {{ duser }}@{{ settings.vps_host }} -p {{ t.remote_port }}</code>
             {% else %}
               <code class="copyable">{{ settings.vps_host }}:{{ t.remote_port }}</code>
             {% endif %}
           {% else %}
             {% if t.kind.value == 'ssh' %}
-              <code class="copyable">ssh -J {{ juser }}@{{ settings.vps_host }}:{{ settings.ssh_jump_port }} DEVICEUSER@127.0.0.1 -p {{ t.remote_port }}</code>
+              <code class="copyable">ssh{% if opts %} {{ opts }}{% endif %} -J {{ juser }}@{{ settings.vps_host }}:{{ settings.ssh_jump_port }} {{ duser }}@127.0.0.1 -p {{ t.remote_port }}</code>
             {% else %}
               <code class="copyable">ssh -p {{ settings.ssh_jump_port }} -L {{ t.remote_port }}:127.0.0.1:{{ t.remote_port }} {{ juser }}@{{ settings.vps_host }}</code>
               <span class="muted">then connect to localhost:{{ t.remote_port }}</span>
             {% endif %}
+          {% endif %}
+          {% if t.kind.value == 'ssh' %}
+          <details class="edit-connect">
+            <summary class="muted">Edit</summary>
+            <form method="post" action="{{ base }}/tunnels/{{ t.id }}/connect" class="inline-form">
+              <input type="text" name="connect_user" value="{{ t.connect_user or '' }}"
+                     placeholder="ssh username" title="login user on the device">
+              <input type="text" name="ssh_opts" value="{{ t.ssh_opts or '' }}"
+                     placeholder="ssh options" title="extra ssh flags" size="48">
+              <button type="submit" class="btn small">Save</button>
+            </form>
+          </details>
           {% endif %}
         </td>
         <td class="actions">

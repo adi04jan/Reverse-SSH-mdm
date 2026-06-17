@@ -2,6 +2,7 @@
 from collections.abc import Iterator
 from pathlib import Path
 
+from sqlalchemy import text
 from sqlmodel import Session, SQLModel, create_engine
 
 from .config import settings
@@ -22,6 +23,33 @@ def init_db() -> None:
     from . import models  # noqa: F401
 
     SQLModel.metadata.create_all(engine)
+    _migrate()
+
+
+def _migrate() -> None:
+    """Lightweight, additive column migrations.
+
+    SQLModel.create_all() only creates missing tables; it never alters existing
+    ones. Add new nullable columns here so older databases pick them up on boot.
+    """
+    additions = {
+        "tunnel": [
+            ("connect_user", "VARCHAR"),
+            (
+                "ssh_opts",
+                "VARCHAR DEFAULT "
+                "'-o PubkeyAuthentication=no -o PreferredAuthentications=password'",
+            ),
+        ],
+    }
+    with engine.begin() as conn:
+        for table, columns in additions.items():
+            existing = {
+                row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))
+            }
+            for name, ddl in columns:
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
 
 
 def get_session() -> Iterator[Session]:

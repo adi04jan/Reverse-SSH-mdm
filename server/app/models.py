@@ -23,6 +23,12 @@ class TunnelKind(str, Enum):
     tcp = "tcp"   # forwards an arbitrary TCP service on the device
 
 
+# Default ssh options for the rendered connect command. Forces password auth to
+# the device (skips offering local keys) — handy for test devices that use a
+# password login. Editable per tunnel from the device page.
+DEFAULT_SSH_OPTS = "-o PubkeyAuthentication=no -o PreferredAuthentications=password"
+
+
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)
@@ -61,6 +67,11 @@ class Tunnel(SQLModel, table=True):
     kind: TunnelKind = TunnelKind.ssh
     enabled: bool = True
     label: Optional[str] = None
+    # Connect-command overrides (used to render the copy-able SSH command in the
+    # UI only; they do not affect the tunnel itself). connect_user is the login
+    # name on the device; ssh_opts are extra `ssh` flags (default: force password).
+    connect_user: Optional[str] = None
+    ssh_opts: str = DEFAULT_SSH_OPTS
     created_at: datetime = Field(default_factory=utcnow)
 
 

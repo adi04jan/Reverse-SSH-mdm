@@ -87,6 +87,47 @@ def toggle_tunnel(
     return redirect(request, f"/devices/{tunnel.device_id}")
 
 
+# ssh directives that execute a local command — refused in ssh_opts because the
+# rendered connect string is meant to be copy-pasted into an operator's shell, so
+# a stored value like `-o ProxyCommand=...` would run on whoever pastes it.
+_DANGEROUS_SSH_OPTS = (
+    "proxycommand",
+    "localcommand",
+    "permitlocalcommand",
+    "knownhostscommand",
+)
+
+
+def _check_ssh_opts(ssh_opts: str) -> str:
+    opts = ssh_opts.strip()
+    lowered = opts.lower()
+    for bad in _DANGEROUS_SSH_OPTS:
+        if bad in lowered:
+            raise HTTPException(400, f"ssh option '{bad}' is not allowed")
+    return opts
+
+
+@router.post("/tunnels/{tunnel_id}/connect")
+def edit_connect(
+    tunnel_id: int,
+    request: Request,
+    connect_user: str = Form(""),
+    ssh_opts: str = Form(""),
+    user: User = Depends(require_user),
+    session: Session = Depends(get_session),
+):
+    """Update the per-tunnel connect-command overrides (UI display only)."""
+    tunnel = session.get(Tunnel, tunnel_id)
+    if not tunnel:
+        raise HTTPException(404, "Tunnel not found")
+    tunnel.connect_user = connect_user.strip() or None
+    tunnel.ssh_opts = _check_ssh_opts(ssh_opts)
+    session.add(tunnel)
+    session.commit()
+    log(session, user.username, "tunnel.connect", str(tunnel.remote_port))
+    return redirect(request, f"/devices/{tunnel.device_id}")
+
+
 @router.post("/tunnels/{tunnel_id}/delete")
 def delete_tunnel(
     tunnel_id: int,

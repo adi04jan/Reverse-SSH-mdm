@@ -68,6 +68,27 @@ with TestClient(app) as c:
     port = tunnels[0]["remote_port"]
     assert 20000 <= port <= 29999
 
+    # 7b) connect command renders default password-auth opts; edit persists
+    tunnel_id = tunnels[0]["id"] if "id" in tunnels[0] else 1
+    r = c.get(device_url)
+    assert "PreferredAuthentications=password" in r.text, "default ssh opts shown"
+    r = c.post(f"/tunnels/{tunnel_id}/connect",
+               data={"connect_user": "pi", "ssh_opts": "-o StrictHostKeyChecking=no"},
+               follow_redirects=False)
+    assert r.status_code == 303, r.text
+    r = c.get(device_url)
+    assert "pi@127.0.0.1" in r.text, "edited username reflected in connect command"
+    assert "StrictHostKeyChecking=no" in r.text, "edited opts reflected"
+
+    # command-executing ssh options are refused (copy-paste injection guard)
+    r = c.post(f"/tunnels/{tunnel_id}/connect",
+               data={"connect_user": "pi",
+                     "ssh_opts": '-o ProxyCommand="touch /tmp/pwned"'},
+               follow_redirects=False)
+    assert r.status_code == 400, "dangerous ssh opt must be rejected"
+    r = c.get(device_url)
+    assert "ProxyCommand" not in r.text, "rejected opt not stored"
+
     # 8) authorized_keys file written with restrict + permitlisten
     with open(os.environ["PORTAL_AUTHORIZED_KEYS_PATH"]) as f:
         ak = f.read()
